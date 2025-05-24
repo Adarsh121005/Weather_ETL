@@ -5,16 +5,15 @@
 This project implements an Extract, Transform, Load (ETL) pipeline to fetch weather data from a specified source (e.g., OpenWeatherMap API, a public dataset, etc.), process it, and load it into a target system (e.g., a database, data warehouse, or flat files). The pipeline is orchestrated using Apache Airflow and is designed to run within a Dockerized environment managed by the Astro CLI (or can be adapted for other Airflow setups).
 
 **Purpose:**
-*(Describe the main goal of your project. For example: "To collect daily temperature and precipitation data for major cities, transform it into a consistent format, and store it for historical analysis." Replace this with your project's specific purpose.)*
+*To retrieve hourly weather conditions (temperature, humidity, wind speed) for Boston, MA from the OpenWeatherMap API, clean the data, and load it into a PostgreSQL table for trend analysis.*
 
 ## Key Features
 
-*   **Data Extraction:** Fetches weather data from [Specify your data source, e.g., OpenWeatherMap API].
-*   **Data Transformation:** [Describe the transformations, e.g., Cleans data, converts units, aggregates hourly data to daily summaries].
-*   **Data Loading:** Loads the transformed data into [Specify your target, e.g., PostgreSQL database, S3 bucket].
+*   **Data Extraction:** Fetches weather data from open_meteo_api
+*   **Data Transformation:** Converts temperature, Flattens nested JSON structures, and Aggregates hourly data into daily averages for temperature.
+*   **Data Loading:** Loads the transformed data into  PostgreSQL database.
 *   **Scheduled Execution:** Uses Apache Airflow for scheduling and monitoring the ETL pipeline.
 *   **Containerized Environment:** Runs within Docker containers for consistency and portability.
-*   **(Add any other specific features of your pipeline)**
 
 ## Technologies Used
 
@@ -22,22 +21,18 @@ This project implements an Extract, Transform, Load (ETL) pipeline to fetch weat
 *   **Containerization:** Docker
 *   **Language:** Python
 *   **Key Python Libraries:** [e.g., `requests` for API calls, `pandas` for data manipulation, `psycopg2` for Postgres interaction, etc. List what you actually use in your DAGs]
-*   **Data Source:** [e.g., OpenWeatherMap API, specific CSV files, etc.]
-*   **Data Target:** [e.g., PostgreSQL, CSV files, etc.]
-*   **Development Environment:** Astro CLI (or specify if you used a different local Airflow setup method)
 
 ## Project Structure
 
 The project follows a standard Astro CLI/Airflow structure:
 
 *   `dags/`: Contains the Python files for your Airflow DAGs.
-    *   `weather_etl_dag.py`: *(Rename this to your main DAG file name)* This DAG defines the tasks for extracting, transforming, and loading weather data. *(Briefly describe what your main DAG(s) do here. Replace the example_astronauts description.)*
+    *   `etlweather.py`: This DAG defines the tasks for extracting, transforming, and loading weather data.
 *   `Dockerfile`: Defines the Docker image based on Astro Runtime, including any custom dependencies.
 *   `include/`: For any additional files or scripts needed by your DAGs (e.g., SQL query files, helper Python modules).
 *   `packages.txt`: Lists OS-level packages to be installed in the Docker image.
-*   `requirements.txt`: Lists Python packages to be installed (e.g., `apache-airflow-providers-postgres`, `requests`, `pandas`).
-*   `plugins/`: For custom Airflow plugins, if any.
-*   `airflow_settings.yaml`: (Local development only) For defining Airflow Connections, Variables, and Pools without using the UI. *(Specify if you've used this for API keys or other configurations for your weather project).*
+*   `requirements.txt`: Lists Python packages to be installed apache-airflow-providers-postgres`, `requests`, `pandas`.
+*   `airflow_settings.yaml`: For defining Airflow Connections, Variables, and Pools without using the UI.
 
 ## Setup and Running the Project Locally
 
@@ -49,7 +44,7 @@ These instructions assume you are using the Astro CLI.
 
 2.  **Clone the Repository:**
     ```
-    git clone [YOUR_GITHUB_REPOSITORY_URL]
+    git clone (https://github.com/Adarsh121005/Weather_ETL/)
     cd ETLWeather
     ```
 
@@ -64,8 +59,7 @@ These instructions assume you are using the Astro CLI.
                 key: weather_api_key
                 value: YOUR_API_KEY_HERE
           pools: []
-        ```
-    *(Make sure to instruct users to replace `YOUR_API_KEY_HERE` and not commit actual keys to `airflow_settings.yaml` if the repo is public. Better to mention setting them via UI or environment variables for sensitive data).*
+        ``
 
 4.  **Start Airflow Locally:**
     ```
@@ -76,7 +70,7 @@ These instructions assume you are using the Astro CLI.
 5.  **Access Airflow UI:**
     *   Open your browser and go to `http://localhost:8080/`.
     *   Log in with username `admin` and password `admin`.
-    *   You should see your `weather_etl_dag` (or your DAG's name) listed. You can unpause it and trigger a run.
+    *   You should see your `etlweather\` listed. You can unpause it and trigger a run.
 
 6.  **Verify Docker Containers:**
     You can check if all containers are running with:
@@ -89,32 +83,20 @@ These instructions assume you are using the Astro CLI.
 
 ## Understanding the DAG(s)
 
-*(This is a crucial section. Elaborate on your specific DAG(s) here.)*
-
-*   **`weather_etl_dag.py`** *(Use your actual DAG file name)*
-    *   **Purpose:** Orchestrates the end-to-end process of fetching, transforming, and loading weather data.
+*   **`eltweather.py`** 
+    *   **Purpose:** Orchestrates the end-to-end process of fetching, transforming, and loading current weather data for a predefined list of cities (London, Paris, New York). The pipeline creates a separate CSV file for each city's weather data per run.
+    *   **Schedule:** This pipeline is scheduled to run daily. Airflow's `@daily` preset typically means it runs once per day at 00:00 UTC at the beginning of the scheduled interval.
     *   **Tasks:**
-        *   `extract_weather_data`: [Describe what this task does, e.g., "Calls the OpenWeatherMap API to get current weather for specified cities."]
-        *   `transform_weather_data`: [Describe what this task does, e.g., "Cleans the raw JSON response, converts temperatures to Celsius, and structures the data."]
-        *   `load_weather_data_to_db`: [Describe what this task does, e.g., "Writes the transformed data into a PostgreSQL table named 'weather_reports'."]
-        *   *(Add/remove tasks based on your actual DAG structure)*
-    *   **Schedule:** [Specify how often it runs, e.g., "Runs daily at 01:00 UTC."]
+        *   `is_weather_api_ready`: Checks if the OpenWeatherMap API endpoint is accessible before starting the data processing for any city.
+        *   `extract_weather_data_[city_name]`: (Repeated for each city) Calls the OpenWeatherMap API to fetch current weather data for the specific city. The raw JSON response is pushed to Airflow XComs.
+        *   `transform_weather_data_[city_name]`: (Repeated for each city) Retrieves raw JSON data from XComs, extracts key fields, converts temperatures from Kelvin to Fahrenheit, and formats timestamps. The structured data is pushed back to XComs.
+        *   `load_weather_data_[city_name]`: (Repeated for each city) Pulls transformed data from XComs, converts it to a Pandas DataFrame, and saves it as a city-specific CSV file (e.g., `London_weather_data_YYYYMMDDHHMMSS.csv`).
 
-## Future Enhancements (Optional)
-
-*   [e.g., Add more data sources (historical weather, forecasts)]
-*   [e.g., Implement more complex transformations or data quality checks]
-*   [e.g., Integrate with a BI tool for visualization]
-
-## License
-
-*(Choose a license if you wish, e.g., MIT License. If you don't add one, it's under standard copyright.)*
-Example: `This project is licensed under the MIT License - see the LICENSE.md file for details.`
 
 ## Author
 
 *   **Adarsh Pentapati**
-*   [Link to your LinkedIn profile]
-*   [Link to your GitHub profile]
+*   https://www.linkedin.com/in/adarsh-pentapati/
+*   https://github.com/Adarsh121005/
 
 ---
